@@ -770,27 +770,48 @@
                 saveFormData();
             });
 
-            document.getElementById('calculate').addEventListener('click', calculateTotalCost);
-            document.getElementById('copyMessage').addEventListener('click', () => copyMessageToClipboard(false));
-            document.getElementById('copyMessageRounded').addEventListener('click', () => copyMessageToClipboard(true));
-            document.getElementById('fetchExchangeRate').addEventListener('click', fetchExchangeRate);
+            const calculateBtn = document.getElementById('calculate');
+            if (calculateBtn) {
+                calculateBtn.addEventListener('click', calculateTotalCost);
+            }
 
-            document.getElementById('resetForm').addEventListener('click', () => {
-                form.reset();
-                elements.usdToSar.value = '3.76';
-                elements.officeCommission.value = '2000';
-                elements.customsFees.value = '1500';
-                if (elements.personalExtraFee) elements.personalExtraFee.value = '';
-                updateProgress();
-                calculateTotalCost();
-                saveFormData();
-                showToast('تم إعادة تعيين النموذج', 'success');
-            });
+            const copyMessageBtn = document.getElementById('copyMessage');
+            if (copyMessageBtn) {
+                copyMessageBtn.addEventListener('click', () => copyMessageToClipboard(false));
+            }
+
+            const copyMessageRoundedBtn = document.getElementById('copyMessageRounded');
+            if (copyMessageRoundedBtn) {
+                copyMessageRoundedBtn.addEventListener('click', () => copyMessageToClipboard(true));
+            }
+
+            const fetchExchangeRateBtn = document.getElementById('fetchExchangeRate');
+            if (fetchExchangeRateBtn) {
+                fetchExchangeRateBtn.addEventListener('click', fetchExchangeRate);
+            }
+
+            const resetFormBtn = document.getElementById('resetForm');
+            if (resetFormBtn) {
+                resetFormBtn.addEventListener('click', () => {
+                    form.reset();
+                    elements.usdToSar.value = '3.76';
+                    elements.officeCommission.value = '2000';
+                    elements.customsFees.value = '1500';
+                    if (elements.personalExtraFee) elements.personalExtraFee.value = '';
+                    updateProgress();
+                    calculateTotalCost();
+                    saveFormData();
+                    showToast('تم إعادة تعيين النموذج', 'success');
+                });
+            }
 
             // 📦 Restore data button
-            document.getElementById('restoreDataBtn').addEventListener('click', () => {
-                restoreFormData(true);
-            });
+            const restoreDataBtn = document.getElementById('restoreDataBtn');
+            if (restoreDataBtn) {
+                restoreDataBtn.addEventListener('click', () => {
+                    restoreFormData(true);
+                });
+            }
 
             // Initialize
             updateProgress();
