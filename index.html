@@ -813,6 +813,14 @@
                 });
             }
 
+            // تأكد من تنفيذ الكود بعد تحميل الصفحة بالكامل
+            const shareBtn = document.getElementById('shareBtn');
+            if (shareBtn) {
+                shareBtn.addEventListener('click', function () {
+                    // ... ضع هنا كود المشاركة الخاص بك ...
+                });
+            }
+
             // Initialize
             updateProgress();
             calculateTotalCost();
