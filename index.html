@@ -716,7 +716,7 @@
                 // الرسوم الشخصية (للاستخدام الداخلي فقط)
                 const personalExtraFee = Math.max(0, parseFloat(fields.personalExtraFee?.value) || 0);
 
-                // المجموع النهائي (يشمل الرسوم الشخصية (للاستخدام الداخلي))
+                // المجموع النهائي (يشمل الرسوم الشخصية)
                 const total = carPriceSar + taxAndCustoms + additionalFeesValue + shippingCostValue + personalExtraFee;
                 // المجموع الظاهر للمستخدم (بدون الرسوم الشخصية)
                 const totalWithoutPersonal = carPriceSar + taxAndCustoms + additionalFeesValue + shippingCostValue;
@@ -805,12 +805,12 @@
                     // حساب التكاليف الموحدة
                     const costs = calculateCosts(elements);
 
-                    // تحديث العرض (بدون الرسوم الشخصية)
+                    // تحديث العرض (الآن يشمل الرسوم الشخصية)
                     elements.totalCost.textContent = formatNumber(costs.totalWithoutPersonal);
                     elements.carCostSAR.textContent = formatNumber(costs.carPriceSar) + ' ريال';
                     elements.taxCost.textContent = formatNumber(costs.taxAndCustoms) + ' ريال';
                     elements.shippingCost.textContent = formatNumber(costs.shippingCostValue) + ' ريال';
-                    // لا تظهر الرسوم الشخصية في العرض
+                    // لا تظهر الرسوم الشخصية في العرض الفرعي (حسب التصميم)
                     elements.additionalFees.textContent = formatNumber(costs.additionalFeesValue) + ' ريال';
 
                     // تحريك الرقم
