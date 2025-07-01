@@ -717,7 +717,8 @@
                 const carPriceSar = (carPriceUsd || 0) * (parseFloat(elements.usdToSar.value) || 0);
                 const taxAndCustoms = ((parseFloat(elements.carPriceTable.value) || 0) * 0.2);
                 const shippingCostValue = elements.carSize.value === 'small' ? 5800 : 6800;
-                const totalCostValue = carPriceSar + taxAndCustoms + (parseFloat(elements.customsFees.value) || 0) + (parseFloat(elements.officeCommission.value) || 0) + (parseFloat(elements.personalExtraFee.value) || 0);
+                // ✅ أضف قيمة الشحن هنا
+                const totalCostValue = carPriceSar + taxAndCustoms + (parseFloat(elements.customsFees.value) || 0) + (parseFloat(elements.officeCommission.value) || 0) + shippingCostValue + (parseFloat(elements.personalExtraFee.value) || 0);
 
                 // For rounded version, round to nearest 100
                 const totalToShow = rounded ? formatNumberHundred(totalCostValue) : Math.round(totalCostValue);
