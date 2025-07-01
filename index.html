@@ -422,7 +422,7 @@
 
                         <div class="form-group">
                             <label for="bodyCondition">حالة الهيكل:</label>
-                            <input type="text" id="bodyCondition" name="bodyCondition" required placeholder="ممتازة، جيدة، متوسطة">
+                            <input type="text" id="bodyCondition" name="bodyCondition" required placeholder="وكالة ، رش باب يمين">
                         </div>
 
                         <div class="form-group">
@@ -445,7 +445,7 @@
                         <div class="form-group">
                             <label for="krwToUsd">سعر صرف الدولار مقابل الوون الكوري:</label>
                             <div class="input-group">
-                                <input type="number" id="krwToUsd" name="krwToUsd" required min="1000" max="2000" placeholder="1340">
+                                <input type="number" id="krwToUsd" name="krwToUsd" required min="1000" max="2000" placeholder="سعر الصرف بعد خصم 10 وون">
                                 <span class="currency">KRW</span>
                             </div>
                             <button type="button" class="btn btn-outline" id="fetchExchangeRate" style="margin-top: 10px;">
@@ -463,17 +463,17 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="carPriceKrw">سعر السيارة بالوون الكوري:</label>
+                            <label for="carPriceKrw">سعر السيارة بالوون الكوري (بالمليون):</label>
                             <div class="input-group">
-                                <input type="number" id="carPriceKrw" name="carPriceKrw" required min="1000000" placeholder="25000000">
-                                <span class="currency">KRW</span>
+                                <input type="number" id="carPriceKrw" name="carPriceKrw" required min="1" step="0.01" placeholder="مثال: 25.50">
+                                <span class="currency">مليون KRW</span>
                             </div>
                         </div>
 
                         <div class="form-group">
                             <label for="carPriceTable">سعر السيارة حسب الجدول:</label>
                             <div class="input-group">
-                                <input type="number" id="carPriceTable" name="carPriceTable" required min="10000" placeholder="80000">
+                                <input type="number" id="carPriceTable" name="carPriceTable" required min="10000" placeholder="القيمة من جدول الجمارك">
                                 <span class="currency">SAR</span>
                             </div>
                         </div>
@@ -678,9 +678,11 @@
             // Calculate total cost
             function calculateTotalCost() {
                 try {
-                    // Remove -10 logic, use exact input value
+                    // المستخدم يدخل القيمة بالمليون
+                    const carPriceKrwInput = parseFloat(elements.carPriceKrw.value) || 0;
+                    const carPriceKrw = carPriceKrwInput * 1_000_000; // القيمة الفعلية بالوون
                     const exchangeRateKrw = parseFloat(elements.krwToUsd.value) || 0;
-                    const carPriceUsd = (parseFloat(elements.carPriceKrw.value) || 0) / (exchangeRateKrw || 1);
+                    const carPriceUsd = carPriceKrw / (exchangeRateKrw || 1);
                     const carPriceSar = (carPriceUsd || 0) * (parseFloat(elements.usdToSar.value) || 0);
                     const taxAndCustoms = (parseFloat(elements.carPriceTable.value) || 0) * 0.2;
                     const shippingCostValue = elements.carSize.value === 'small' ? 5800 : 6800;
@@ -711,13 +713,14 @@
                 const formData = new FormData(form);
                 const data = Object.fromEntries(formData);
 
-                // Remove -10 logic, use exact input value
+                // المستخدم يدخل القيمة بالمليون
+                const carPriceKrwInput = parseFloat(elements.carPriceKrw.value) || 0;
+                const carPriceKrw = carPriceKrwInput * 1_000_000;
                 const exchangeRateKrw = parseFloat(elements.krwToUsd.value) || 0;
-                const carPriceUsd = (parseFloat(elements.carPriceKrw.value) || 0) / (exchangeRateKrw || 1);
+                const carPriceUsd = carPriceKrw / (exchangeRateKrw || 1);
                 const carPriceSar = (carPriceUsd || 0) * (parseFloat(elements.usdToSar.value) || 0);
                 const taxAndCustoms = ((parseFloat(elements.carPriceTable.value) || 0) * 0.2);
                 const shippingCostValue = elements.carSize.value === 'small' ? 5800 : 6800;
-                // ✅ أضف قيمة الشحن هنا
                 const totalCostValue = carPriceSar + taxAndCustoms + (parseFloat(elements.customsFees.value) || 0) + (parseFloat(elements.officeCommission.value) || 0) + shippingCostValue + (parseFloat(elements.personalExtraFee.value) || 0);
 
                 // For rounded version, round to nearest 100
@@ -736,15 +739,15 @@
 
 💰 التفاصيل المالية:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• سعر الوون: ${Math.round(data.carPriceKrw)}
-• السعر بالريال: ${Math.round(carPriceSar)}
-• الضريبة والجمارك: ${Math.round(taxAndCustoms)}
-• رسوم التخليص: ${Math.round(data.customsFees)}
-• عمولة المكتب: ${Math.round(data.officeCommission)}
-• تكلفة الشحن: ${shippingCostValue}
+• سعر السيارة: ${carPriceKrwInput.toFixed(2)} مليون وون
+• السعر بالريال: ${Math.round(carPriceSar)} ريال سعودي
+• الضريبة والجمارك: ${Math.round(taxAndCustoms)} ريال سعودي
+• رسوم التخليص: ${Math.round(data.customsFees)} ريال سعودي
+• عمولة المكتب: ${Math.round(data.officeCommission)} ريال سعودي
+• تكلفة الشحن: ${shippingCostValue} ريال سعودي
 
 💎 إجمالي السعر الشامل: ${totalToShow} ريال سعودي
-                `;
+`;
 
                 if (navigator.clipboard) {
                     navigator.clipboard.writeText(message).then(() => {
