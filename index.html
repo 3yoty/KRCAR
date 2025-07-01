@@ -354,6 +354,11 @@
             border-color: #4CAF50;
             background: #f8fff8;
         }
+
+        .input-error {
+            border-color: #f44336 !important;
+            background: #fff3f3;
+        }
     </style>
 </head>
 <body>
@@ -631,28 +636,145 @@
                 document.getElementById('financialSection').classList.toggle('completed', financialFilled);
             }
 
-            // Save form data to localStorage
-            function saveFormData() {
-                const data = {};
-                Array.from(form.elements).forEach(el => {
-                    if (el.name) data[el.name] = el.value;
+            /**
+             * التحقق من صحة جميع المدخلات الرقمية والمنطقية
+             * @returns {boolean} true إذا كانت جميع المدخلات صحيحة، false وإظهار رسالة خطأ إذا لا
+             */
+            function validateInput() {
+                let valid = true;
+                let messages = [];
+
+                // تحقق من القيم الرقمية المطلوبة
+                const requiredFields = [
+                    { el: elements.krwToUsd, name: 'سعر صرف الدولار مقابل الوون', min: 1000, max: 2000 },
+                    { el: elements.usdToSar, name: 'سعر صرف الريال مقابل الدولار', min: 3, max: 5 },
+                    { el: elements.carPriceKrw, name: 'سعر السيارة بالوون', min: 1 },
+                    { el: elements.carPriceTable, name: 'سعر السيارة حسب الجدول', min: 10000 },
+                    { el: elements.officeCommission, name: 'عمولة المكتب', min: 0 },
+                    { el: elements.customsFees, name: 'رسوم التخليص الجمركي', min: 0 }
+                ];
+                requiredFields.forEach(field => {
+                    const val = parseFloat(field.el.value);
+                    if (isNaN(val) || val < field.min || (field.max && val > field.max)) {
+                        valid = false;
+                        messages.push(`⚠️ ${field.name} غير صحيح`);
+                        field.el.classList.add('input-error');
+                    } else {
+                        field.el.classList.remove('input-error');
+                    }
                 });
-                localStorage.setItem('carCostFormData', JSON.stringify(data));
+
+                // تحقق من carSize
+                if (!elements.carSize.value) {
+                    valid = false;
+                    messages.push('⚠️ يرجى اختيار حجم السيارة');
+                    elements.carSize.classList.add('input-error');
+                } else {
+                    elements.carSize.classList.remove('input-error');
+                }
+
+                // تحقق من القيم السالبة
+                ['carPriceKrw', 'carPriceTable', 'officeCommission', 'customsFees', 'personalExtraFee'].forEach(key => {
+                    const el = elements[key];
+                    if (el && el.value && parseFloat(el.value) < 0) {
+                        valid = false;
+                        messages.push(`⚠️ لا يسمح بقيم سالبة في ${el.previousElementSibling?.textContent || key}`);
+                        el.classList.add('input-error');
+                    } else if (el) {
+                        el.classList.remove('input-error');
+                    }
+                });
+
+                if (!valid && messages.length) {
+                    showToast(messages.join('\n'), 'error');
+                }
+                return valid;
             }
 
-            // Restore form data from localStorage
-            function restoreFormData(showMsg = true) {
-                const data = localStorage.getItem('carCostFormData');
-                if (data) {
-                    const obj = JSON.parse(data);
+            /**
+             * حساب جميع التكاليف التفصيلية للسيارة
+             * @param {Object} fields - عناصر الإدخال المطلوبة
+             * @returns {Object} كائن يحتوي على تفاصيل التكاليف
+             */
+            function calculateCosts(fields) {
+                // التحقق من صحة القيم الرقمية
+                const carPriceKrwInput = Math.max(0, parseFloat(fields.carPriceKrw?.value) || 0);
+                const carPriceKrw = carPriceKrwInput * 1_000_000;
+                const exchangeRateKrw = Math.max(1, parseFloat(fields.krwToUsd?.value) || 1);
+                const usdToSar = Math.max(0, parseFloat(fields.usdToSar?.value) || 0);
+                const carPriceUsd = carPriceKrw / exchangeRateKrw;
+                const carPriceSar = carPriceUsd * usdToSar;
+                const carPriceTable = Math.max(0, parseFloat(fields.carPriceTable?.value) || 0);
+                const taxAndCustoms = carPriceTable * 0.2;
+                // قيمة الشحن حسب حجم السيارة (قيمة افتراضية صغيرة)
+                let shippingCostValue = 5800;
+                if (fields.carSize?.value === 'large') shippingCostValue = 6800;
+                // رسوم إضافية (بدون الرسوم الشخصية)
+                const customsFees = Math.max(0, parseFloat(fields.customsFees?.value) || 0);
+                const officeCommission = Math.max(0, parseFloat(fields.officeCommission?.value) || 0);
+                const additionalFeesValue = customsFees + officeCommission;
+                // الرسوم الشخصية (للاستخدام الداخلي فقط)
+                const personalExtraFee = Math.max(0, parseFloat(fields.personalExtraFee?.value) || 0);
+
+                // المجموع النهائي (يشمل الرسوم الشخصية (للاستخدام الداخلي))
+                const total = carPriceSar + taxAndCustoms + additionalFeesValue + shippingCostValue + personalExtraFee;
+                // المجموع الظاهر للمستخدم (بدون الرسوم الشخصية)
+                const totalWithoutPersonal = carPriceSar + taxAndCustoms + additionalFeesValue + shippingCostValue;
+
+                return {
+                    carPriceKrwInput,
+                    carPriceKrw,
+                    carPriceUsd,
+                    carPriceSar,
+                    taxAndCustoms,
+                    shippingCostValue,
+                    customsFees,
+                    officeCommission,
+                    additionalFeesValue,
+                    personalExtraFee,
+                    total, // يشمل الرسوم الشخصية (للاستخدام الداخلي)
+                    totalWithoutPersonal // لا يشمل الرسوم الشخصية (للعرض والنسخ)
+                };
+            }
+
+            // Save form data to localStorage (معالجة دعم المتصفح والأخطاء)
+            function saveFormData() {
+                try {
+                    if (typeof window.localStorage === 'undefined') {
+                        console.warn('localStorage غير مدعوم في هذا المتصفح');
+                        return;
+                    }
+                    const data = {};
                     Array.from(form.elements).forEach(el => {
-                        if (el.name && obj.hasOwnProperty(el.name)) {
-                            el.value = obj[el.name];
-                        }
+                        if (el.name) data[el.name] = el.value;
                     });
-                    updateProgress();
-                    calculateTotalCost();
-                    if (showMsg) showToast('✅ تم استرجاع البيانات بنجاح', 'success');
+                    localStorage.setItem('carCostFormData', JSON.stringify(data));
+                } catch (err) {
+                    console.error('فشل حفظ البيانات في localStorage:', err);
+                }
+            }
+
+            // Restore form data from localStorage (معالجة دعم المتصفح والأخطاء)
+            function restoreFormData(showMsg = true) {
+                try {
+                    if (typeof window.localStorage === 'undefined') {
+                        console.warn('localStorage غير مدعوم في هذا المتصفح');
+                        return;
+                    }
+                    const data = localStorage.getItem('carCostFormData');
+                    if (data) {
+                        const obj = JSON.parse(data);
+                        Array.from(form.elements).forEach(el => {
+                            if (el.name && obj.hasOwnProperty(el.name)) {
+                                el.value = obj[el.name];
+                            }
+                        });
+                        updateProgress();
+                        calculateTotalCost();
+                        if (showMsg) showToast('✅ تم استرجاع البيانات بنجاح', 'success');
+                    }
+                } catch (err) {
+                    console.error('فشل استرجاع البيانات من localStorage:', err);
                 }
             }
 
@@ -669,64 +791,57 @@
                     calculateTotalCost();
                     saveFormData();
                 } catch (error) {
+                    console.error(error);
                     showToast('فشل في جلب سعر الصرف. يرجى المحاولة لاحقًا.', 'error');
                 } finally {
                     elements.loading.style.display = 'none';
                 }
             }
 
-            // Calculate total cost
+            // Calculate total cost (موحد ويستخدم الدالة الجديدة)
             function calculateTotalCost() {
                 try {
-                    // المستخدم يدخل القيمة بالمليون
-                    const carPriceKrwInput = parseFloat(elements.carPriceKrw.value) || 0;
-                    const carPriceKrw = carPriceKrwInput * 1_000_000; // القيمة الفعلية بالوون
-                    const exchangeRateKrw = parseFloat(elements.krwToUsd.value) || 0;
-                    const carPriceUsd = carPriceKrw / (exchangeRateKrw || 1);
-                    const carPriceSar = (carPriceUsd || 0) * (parseFloat(elements.usdToSar.value) || 0);
-                    const taxAndCustoms = (parseFloat(elements.carPriceTable.value) || 0) * 0.2;
-                    const shippingCostValue = elements.carSize.value === 'small' ? 5800 : 6800;
-                    const additionalFeesValue = (parseFloat(elements.customsFees.value) || 0) + (parseFloat(elements.officeCommission.value) || 0);
-                    const personalExtraFee = parseFloat(elements.personalExtraFee.value) || 0;
-                    const total = carPriceSar + taxAndCustoms + additionalFeesValue + shippingCostValue + personalExtraFee;
+                    if (!validateInput()) return;
+                    // حساب التكاليف الموحدة
+                    const costs = calculateCosts(elements);
 
-                    // Update display with formatted numbers
-                    elements.totalCost.textContent = formatNumber(total);
-                    elements.carCostSAR.textContent = formatNumber(carPriceSar) + ' ريال';
-                    elements.taxCost.textContent = formatNumber(taxAndCustoms) + ' ريال';
-                    elements.shippingCost.textContent = formatNumber(shippingCostValue) + ' ريال';
-                    elements.additionalFees.textContent = formatNumber(additionalFeesValue + personalExtraFee) + ' ريال';
+                    // تحديث العرض (بدون الرسوم الشخصية)
+                    elements.totalCost.textContent = formatNumber(costs.totalWithoutPersonal);
+                    elements.carCostSAR.textContent = formatNumber(costs.carPriceSar) + ' ريال';
+                    elements.taxCost.textContent = formatNumber(costs.taxAndCustoms) + ' ريال';
+                    elements.shippingCost.textContent = formatNumber(costs.shippingCostValue) + ' ريال';
+                    // لا تظهر الرسوم الشخصية في العرض
+                    elements.additionalFees.textContent = formatNumber(costs.additionalFeesValue) + ' ريال';
 
-                    // Animate the total cost
+                    // تحريك الرقم
                     elements.totalCost.style.transform = 'scale(1.1)';
                     setTimeout(() => {
                         elements.totalCost.style.transform = 'scale(1)';
                     }, 200);
 
                 } catch (error) {
+                    console.error(error);
                     showToast('حدث خطأ في الحساب. يرجى التحقق من البيانات المدخلة.', 'error');
                 }
             }
 
-            // Copy message to clipboard (normal)
+            /**
+             * نسخ الرسالة إلى الحافظة بطريقة حديثة مع fallback
+             * @param {boolean} rounded تقريب إلى أقرب مئة
+             */
             function copyMessageToClipboard(rounded = false) {
-                const formData = new FormData(form);
-                const data = Object.fromEntries(formData);
+                try {
+                    if (!validateInput()) return;
+                    const formData = new FormData(form);
+                    const data = Object.fromEntries(formData);
 
-                // المستخدم يدخل القيمة بالمليون
-                const carPriceKrwInput = parseFloat(elements.carPriceKrw.value) || 0;
-                const carPriceKrw = carPriceKrwInput * 1_000_000;
-                const exchangeRateKrw = parseFloat(elements.krwToUsd.value) || 0;
-                const carPriceUsd = carPriceKrw / (exchangeRateKrw || 1);
-                const carPriceSar = (carPriceUsd || 0) * (parseFloat(elements.usdToSar.value) || 0);
-                const taxAndCustoms = ((parseFloat(elements.carPriceTable.value) || 0) * 0.2);
-                const shippingCostValue = elements.carSize.value === 'small' ? 5800 : 6800;
-                const totalCostValue = carPriceSar + taxAndCustoms + (parseFloat(elements.customsFees.value) || 0) + (parseFloat(elements.officeCommission.value) || 0) + shippingCostValue + (parseFloat(elements.personalExtraFee.value) || 0);
+                    // حساب التكاليف الموحدة
+                    const costs = calculateCosts(elements);
 
-                // For rounded version, round to nearest 100
-                const totalToShow = rounded ? formatNumberHundred(totalCostValue) : Math.round(totalCostValue);
+                    // المجموع الظاهر فقط (بدون الرسوم الشخصية)
+                    const totalToShow = rounded ? formatNumberHundred(costs.totalWithoutPersonal) : Math.round(costs.totalWithoutPersonal);
 
-                const message = `
+                    const message = `
 🚗 تفاصيل السيارة:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • نوع السيارة: ${data.carType}
@@ -739,31 +854,53 @@
 
 💰 التفاصيل المالية:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• سعر السيارة: ${carPriceKrwInput.toFixed(2)} مليون وون
-• السعر بالريال: ${Math.round(carPriceSar)} ريال سعودي
-• الضريبة والجمارك: ${Math.round(taxAndCustoms)} ريال سعودي
-• رسوم التخليص: ${Math.round(data.customsFees)} ريال سعودي
-• عمولة المكتب: ${Math.round(data.officeCommission)} ريال سعودي
-• تكلفة الشحن: ${shippingCostValue} ريال سعودي
+• سعر السيارة: ${costs.carPriceKrwInput.toFixed(2)} مليون وون
+• السعر بالريال: ${Math.round(costs.carPriceSar)} ريال سعودي
+• الضريبة والجمارك: ${Math.round(costs.taxAndCustoms)} ريال سعودي
+• رسوم التخليص: ${Math.round(costs.customsFees)} ريال سعودي
+• عمولة المكتب: ${Math.round(costs.officeCommission)} ريال سعودي
+• تكلفة الشحن: ${costs.shippingCostValue} ريال سعودي
 
 💎 إجمالي السعر الشامل: ${totalToShow} ريال سعودي
 `;
 
-                if (navigator.clipboard) {
-                    navigator.clipboard.writeText(message).then(() => {
-                        showToast('تم نسخ التفاصيل بنجاح!', 'success');
-                    }).catch(() => {
-                        showToast('حدث خطأ أثناء النسخ!', 'error');
-                    });
-                } else {
-                    // Fallback for older browsers
+                    // طريقة حديثة للنسخ مع fallback
+                    if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(message).then(() => {
+                            showToast('تم نسخ التفاصيل بنجاح!', 'success');
+                        }).catch((err) => {
+                            console.error('Clipboard API error:', err);
+                            fallbackCopyTextToClipboard(message);
+                        });
+                    } else {
+                        fallbackCopyTextToClipboard(message);
+                    }
+                } catch (error) {
+                    console.error(error);
+                    showToast('حدث خطأ أثناء تجهيز الرسالة!', 'error');
+                }
+            }
+
+            // Fallback للنسخ التقليدي
+            function fallbackCopyTextToClipboard(text) {
+                try {
                     const textarea = document.createElement('textarea');
-                    textarea.value = message;
+                    textarea.value = text;
+                    textarea.style.position = 'fixed'; // Prevent scrolling to bottom
                     document.body.appendChild(textarea);
+                    textarea.focus();
                     textarea.select();
-                    document.execCommand('copy');
+                    try {
+                        document.execCommand('copy');
+                        showToast('تم نسخ التفاصيل بنجاح!', 'success');
+                    } catch (err) {
+                        console.error('execCommand copy failed:', err);
+                        showToast('لم يتم النسخ تلقائياً. انسخ يدوياً.', 'error');
+                    }
                     document.body.removeChild(textarea);
-                    showToast('تم نسخ التفاصيل بنجاح!', 'success');
+                } catch (err) {
+                    console.error('Fallback copy failed:', err);
+                    showToast('لم يتم النسخ تلقائياً. انسخ يدوياً.', 'error');
                 }
             }
 
@@ -817,13 +954,13 @@
                 });
             }
 
-            // تأكد من تنفيذ الكود بعد تحميل الصفحة بالكامل
-            const shareBtn = document.getElementById('shareBtn');
-            if (shareBtn) {
-                shareBtn.addEventListener('click', function () {
-                    // ... ضع هنا كود المشاركة الخاص بك ...
-                });
-            }
+            // حذف أي مراجع لعناصر غير موجودة (shareBtn)
+            // const shareBtn = document.getElementById('shareBtn');
+            // if (shareBtn) {
+            //     shareBtn.addEventListener('click', function () {
+            //         // ... ضع هنا كود المشاركة الخاص بك ...
+            //     });
+            // }
 
             // Initialize
             updateProgress();
