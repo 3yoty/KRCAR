@@ -691,11 +691,7 @@
                 return valid;
             }
 
-            /**
-             * حساب جميع التكاليف التفصيلية للسيارة
-             * @param {Object} fields - عناصر الإدخال المطلوبة
-             * @returns {Object} كائن يحتوي على تفاصيل التكاليف
-             */
+            // حساب جميع التكاليف التفصيلية للسيارة
             function calculateCosts(fields) {
                 // التحقق من صحة القيم الرقمية
                 const carPriceKrwInput = Math.max(0, parseFloat(fields.carPriceKrw?.value) || 0);
@@ -718,8 +714,8 @@
 
                 // المجموع النهائي (يشمل الرسوم الشخصية)
                 const total = carPriceSar + taxAndCustoms + additionalFeesValue + shippingCostValue + personalExtraFee;
-                // المجموع الظاهر للمستخدم (بدون الرسوم الشخصية)
-                const totalWithoutPersonal = carPriceSar + taxAndCustoms + additionalFeesValue + shippingCostValue;
+                // المجموع الظاهر للمستخدم (يشمل الرسوم الشخصية الآن)
+                const totalWithPersonal = total;
 
                 return {
                     carPriceKrwInput,
@@ -732,8 +728,8 @@
                     officeCommission,
                     additionalFeesValue,
                     personalExtraFee,
-                    total, // يشمل الرسوم الشخصية (للاستخدام الداخلي)
-                    totalWithoutPersonal // لا يشمل الرسوم الشخصية (للعرض والنسخ)
+                    total, // يشمل الرسوم الشخصية
+                    totalWithPersonal // يشمل الرسوم الشخصية (للعرض والنسخ)
                 };
             }
 
@@ -805,8 +801,8 @@
                     // حساب التكاليف الموحدة
                     const costs = calculateCosts(elements);
 
-                    // تحديث العرض (الآن يشمل الرسوم الشخصية)
-                    elements.totalCost.textContent = formatNumber(costs.totalWithoutPersonal);
+                    // تحديث العرض (يشمل الرسوم الشخصية الآن)
+                    elements.totalCost.textContent = formatNumber(costs.totalWithPersonal);
                     elements.carCostSAR.textContent = formatNumber(costs.carPriceSar) + ' ريال';
                     elements.taxCost.textContent = formatNumber(costs.taxAndCustoms) + ' ريال';
                     elements.shippingCost.textContent = formatNumber(costs.shippingCostValue) + ' ريال';
@@ -838,8 +834,8 @@
                     // حساب التكاليف الموحدة
                     const costs = calculateCosts(elements);
 
-                    // المجموع الظاهر فقط (بدون الرسوم الشخصية)
-                    const totalToShow = rounded ? formatNumberHundred(costs.totalWithoutPersonal) : Math.round(costs.totalWithoutPersonal);
+                    // المجموع الظاهر فقط (يشمل الرسوم الشخصية الآن)
+                    const totalToShow = rounded ? formatNumberHundred(costs.totalWithPersonal) : Math.round(costs.totalWithPersonal);
 
                     const message = `
 🚗 تفاصيل السيارة:
