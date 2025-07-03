@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
@@ -299,7 +299,7 @@
             border-radius: 10px;
             color: white;
             font-weight: 600;
-            z-index: ;
+            z-index: 1000;
             transform: translateX(100%);
             transition: transform 0.3s ease;
         }
@@ -354,10 +354,21 @@
             border-color: #4CAF50;
             background: #f8fff8;
         }
+
+        .input-error {
+            border-color: #f44336 !important;
+            background: #fff3f3;
+        }
     </style>
 </head>
 <body>
     <div class="main-container">
+        <!-- 📦 استعادة البيانات السابقة Button -->
+        <div style="text-align:center; margin: 25px 0 0 0;">
+            <button type="button" class="btn btn-outline" id="restoreDataBtn" style="font-size:1em;">
+                📦 استعادة البيانات السابقة
+            </button>
+        </div>
         <div class="header">
             <div class="car-icon">🚗</div>
             <h1>حاسبة تكاليف السيارة المستعملة</h1>
@@ -416,7 +427,7 @@
 
                         <div class="form-group">
                             <label for="bodyCondition">حالة الهيكل:</label>
-                            <input type="text" id="bodyCondition" name="bodyCondition" required placeholder="وكالة ، رش باب">
+                            <input type="text" id="bodyCondition" name="bodyCondition" required placeholder="وكالة ، رش باب يمين">
                         </div>
 
                         <div class="form-group">
@@ -439,7 +450,7 @@
                         <div class="form-group">
                             <label for="krwToUsd">سعر صرف الدولار مقابل الوون الكوري:</label>
                             <div class="input-group">
-                                <input type="number" id="krwToUsd" name="krwToUsd" required min="1000" max="2000" placeholder="1340">
+                                <input type="number" id="krwToUsd" name="krwToUsd" required min="1000" max="2000" placeholder="سعر الصرف بعد خصم 10 وون">
                                 <span class="currency">KRW</span>
                             </div>
                             <button type="button" class="btn btn-outline" id="fetchExchangeRate" style="margin-top: 10px;">
@@ -457,17 +468,17 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="carPriceKrw">سعر السيارة بالوون الكوري:</label>
+                            <label for="carPriceKrw">سعر السيارة بالوون الكوري (بالمليون):</label>
                             <div class="input-group">
-                                <input type="number" id="carPriceKrw" name="carPriceKrw" required min="1000000" placeholder="25000000">
-                                <span class="currency">KRW</span>
+                                <input type="number" id="carPriceKrw" name="carPriceKrw" required min="1" step="0.01" placeholder="مثال: 25.50">
+                                <span class="currency">مليون KRW</span>
                             </div>
                         </div>
 
                         <div class="form-group">
                             <label for="carPriceTable">سعر السيارة حسب الجدول:</label>
                             <div class="input-group">
-                                <input type="number" id="carPriceTable" name="carPriceTable" required min="10000" placeholder="80000">
+                                <input type="number" id="carPriceTable" name="carPriceTable" required min="10000" placeholder="القيمة من جدول الجمارك">
                                 <span class="currency">SAR</span>
                             </div>
                         </div>
@@ -485,6 +496,17 @@
                             <div class="input-group">
                                 <input type="number" id="customsFees" name="customsFees" value="1500" required min="0">
                                 <span class="currency">SAR</span>
+                            </div>
+                        </div>
+                        <!-- 💰 رسوم إضافية (اختياري) -->
+                        <div class="form-group">
+                            <label for="personalExtraFee">رسوم إضافية (اختياري):</label>
+                            <div class="input-group">
+                                <input type="number" id="personalExtraFee" name="personalExtraFee" min="0" placeholder="مثال: 500">
+                                <span class="currency">SAR</span>
+                            </div>
+                            <div style="font-size:0.9em; color:#888; margin-top:5px;">
+                                لن تظهر هذه القيمة في الرسالة النهائية. للاستخدام الشخصي فقط.
                             </div>
                         </div>
                     </div>
@@ -528,6 +550,11 @@
                         <i class="fas fa-copy"></i>
                         نسخ التفاصيل
                     </button>
+                    <!-- 📐 نسخ التفاصيل (تقريب إلى أقرب مئة) -->
+                    <button type="button" class="btn btn-secondary" id="copyMessageRounded">
+                        <i class="fas fa-copy"></i>
+                        📐 نسخ التفاصيل (تقريب إلى أقرب مئة)
+                    </button>
                     <button type="reset" class="btn btn-outline" id="resetForm">
                         <i class="fas fa-redo"></i>
                         إعادة تعيين
@@ -559,12 +586,18 @@
                 shippingCost: document.getElementById('shippingCost'),
                 additionalFees: document.getElementById('additionalFees'),
                 progressFill: document.getElementById('progressFill'),
-                loading: document.getElementById('loading')
+                loading: document.getElementById('loading'),
+                personalExtraFee: document.getElementById('personalExtraFee')
             };
 
             // Format number with thousands separator
             function formatNumber(num) {
                 return Math.round(num).toLocaleString('ar-SA');
+            }
+
+            // Format number rounded to nearest 100
+            function formatNumberHundred(num) {
+                return Math.round(num / 100) * 100;
             }
 
             // Show toast notification
@@ -603,71 +636,208 @@
                 document.getElementById('financialSection').classList.toggle('completed', financialFilled);
             }
 
+            /**
+             * التحقق من صحة جميع المدخلات الرقمية والمنطقية
+             * @returns {boolean} true إذا كانت جميع المدخلات صحيحة، false وإظهار رسالة خطأ إذا لا
+             */
+            function validateInput() {
+                let valid = true;
+                let messages = [];
+
+                // تحقق من القيم الرقمية المطلوبة
+                const requiredFields = [
+                    { el: elements.krwToUsd, name: 'سعر صرف الدولار مقابل الوون', min: 1000, max: 2000 },
+                    { el: elements.usdToSar, name: 'سعر صرف الريال مقابل الدولار', min: 3, max: 5 },
+                    { el: elements.carPriceKrw, name: 'سعر السيارة بالوون', min: 1 },
+                    { el: elements.carPriceTable, name: 'سعر السيارة حسب الجدول', min: 0 },
+                    { el: elements.officeCommission, name: 'عمولة المكتب', min: 0 },
+                    { el: elements.customsFees, name: 'رسوم التخليص الجمركي', min: 0 }
+                ];
+                requiredFields.forEach(field => {
+                    const val = parseFloat(field.el.value);
+                    if (isNaN(val) || val < field.min || (field.max && val > field.max)) {
+                        valid = false;
+                        messages.push(`⚠️ ${field.name} غير صحيح`);
+                        field.el.classList.add('input-error');
+                    } else {
+                        field.el.classList.remove('input-error');
+                    }
+                });
+
+                // تحقق من carSize
+                if (!elements.carSize.value) {
+                    valid = false;
+                    messages.push('⚠️ يرجى اختيار حجم السيارة');
+                    elements.carSize.classList.add('input-error');
+                } else {
+                    elements.carSize.classList.remove('input-error');
+                }
+
+                // تحقق من القيم السالبة
+                ['carPriceKrw', 'carPriceTable', 'officeCommission', 'customsFees', 'personalExtraFee'].forEach(key => {
+                    const el = elements[key];
+                    if (el && el.value && parseFloat(el.value) < 0) {
+                        valid = false;
+                        messages.push(`⚠️ لا يسمح بقيم سالبة في ${el.previousElementSibling?.textContent || key}`);
+                        el.classList.add('input-error');
+                    } else if (el) {
+                        el.classList.remove('input-error');
+                    }
+                });
+
+                if (!valid && messages.length) {
+                    showToast(messages.join('\n'), 'error');
+                }
+                return valid;
+            }
+
+            // حساب جميع التكاليف التفصيلية للسيارة
+            function calculateCosts(fields) {
+                // التحقق من صحة القيم الرقمية
+                const carPriceKrwInput = Math.max(0, parseFloat(fields.carPriceKrw?.value) || 0);
+                const carPriceKrw = carPriceKrwInput * 1_000_000;
+                const exchangeRateKrw = Math.max(1, parseFloat(fields.krwToUsd?.value) || 1);
+                const usdToSar = Math.max(0, parseFloat(fields.usdToSar?.value) || 0);
+                const carPriceUsd = carPriceKrw / exchangeRateKrw;
+                const carPriceSar = carPriceUsd * usdToSar;
+                const carPriceTable = Math.max(0, parseFloat(fields.carPriceTable?.value) || 0);
+                const taxAndCustoms = carPriceTable * 0.2;
+                // قيمة الشحن حسب حجم السيارة (قيمة افتراضية صغيرة)
+                let shippingCostValue = 5800;
+                if (fields.carSize?.value === 'large') shippingCostValue = 6800;
+                // رسوم إضافية (بدون الرسوم الشخصية)
+                const customsFees = Math.max(0, parseFloat(fields.customsFees?.value) || 0);
+                const officeCommission = Math.max(0, parseFloat(fields.officeCommission?.value) || 0);
+                const additionalFeesValue = customsFees + officeCommission;
+                // الرسوم الشخصية (للاستخدام الداخلي فقط)
+                const personalExtraFee = Math.max(0, parseFloat(fields.personalExtraFee?.value) || 0);
+
+                // المجموع النهائي (يشمل الرسوم الشخصية)
+                const total = carPriceSar + taxAndCustoms + additionalFeesValue + shippingCostValue + personalExtraFee;
+                // المجموع الظاهر للمستخدم (يشمل الرسوم الشخصية الآن)
+                const totalWithPersonal = total;
+
+                return {
+                    carPriceKrwInput,
+                    carPriceKrw,
+                    carPriceUsd,
+                    carPriceSar,
+                    taxAndCustoms,
+                    shippingCostValue,
+                    customsFees,
+                    officeCommission,
+                    additionalFeesValue,
+                    personalExtraFee,
+                    total, // يشمل الرسوم الشخصية
+                    totalWithPersonal // يشمل الرسوم الشخصية (للعرض والنسخ)
+                };
+            }
+
+            // Save form data to localStorage (معالجة دعم المتصفح والأخطاء)
+            function saveFormData() {
+                try {
+                    if (typeof window.localStorage === 'undefined') {
+                        console.warn('localStorage غير مدعوم في هذا المتصفح');
+                        return;
+                    }
+                    const data = {};
+                    Array.from(form.elements).forEach(el => {
+                        if (el.name) data[el.name] = el.value;
+                    });
+                    localStorage.setItem('carCostFormData', JSON.stringify(data));
+                } catch (err) {
+                    console.error('فشل حفظ البيانات في localStorage:', err);
+                }
+            }
+
+            // Restore form data from localStorage (معالجة دعم المتصفح والأخطاء)
+            function restoreFormData(showMsg = true) {
+                try {
+                    if (typeof window.localStorage === 'undefined') {
+                        console.warn('localStorage غير مدعوم في هذا المتصفح');
+                        return;
+                    }
+                    const data = localStorage.getItem('carCostFormData');
+                    if (data) {
+                        const obj = JSON.parse(data);
+                        Array.from(form.elements).forEach(el => {
+                            if (el.name && obj.hasOwnProperty(el.name)) {
+                                el.value = obj[el.name];
+                            }
+                        });
+                        updateProgress();
+                        calculateTotalCost();
+                        if (showMsg) showToast('✅ تم استرجاع البيانات بنجاح', 'success');
+                    }
+                } catch (err) {
+                    console.error('فشل استرجاع البيانات من localStorage:', err);
+                }
+            }
+
             // Fetch exchange rate (mock function - replace with actual API call)
             async function fetchExchangeRate() {
                 elements.loading.style.display = 'block';
-                
                 try {
                     // Mock API call - replace with actual implementation
                     await new Promise(resolve => setTimeout(resolve, 1500));
-                    
                     // Simulate fetched rate
                     const mockRate = 1340 + Math.random() * 50; // Random rate between 1340-1390
                     elements.krwToUsd.value = mockRate.toFixed(0);
-                    
                     showToast('تم جلب سعر الصرف بنجاح!', 'success');
                     calculateTotalCost();
+                    saveFormData();
                 } catch (error) {
+                    console.error(error);
                     showToast('فشل في جلب سعر الصرف. يرجى المحاولة لاحقًا.', 'error');
                 } finally {
                     elements.loading.style.display = 'none';
                 }
             }
 
-            // Calculate total cost
+            // Calculate total cost (موحد ويستخدم الدالة الجديدة)
             function calculateTotalCost() {
                 try {
-                    // Your original calculation logic (keeping the -10 as requested)
-                    const exchangeRateKrw = (parseFloat(elements.krwToUsd.value) || 1);
-                    const carPriceUsd = (parseFloat(elements.carPriceKrw.value) || 0) / (exchangeRateKrw || 1);
-                    const carPriceSar = (carPriceUsd || 0) * (parseFloat(elements.usdToSar.value) || 0);
-                    const taxAndCustoms = (parseFloat(elements.carPriceTable.value) || 0) * 0.2;
-                    const shippingCostValue = elements.carSize.value === 'small' ? 5800 : 6800;
-                    const additionalFeesValue = (parseFloat(elements.customsFees.value) || 0) + (parseFloat(elements.officeCommission.value) || 0);
-                    const total = carPriceSar + taxAndCustoms + additionalFeesValue + shippingCostValue;
+                    if (!validateInput()) return;
+                    // حساب التكاليف الموحدة
+                    const costs = calculateCosts(elements);
 
-                    // Update display with formatted numbers
-                    elements.totalCost.textContent = formatNumber(total);
-                    elements.carCostSAR.textContent = formatNumber(carPriceSar) + ' ريال';
-                    elements.taxCost.textContent = formatNumber(taxAndCustoms) + ' ريال';
-                    elements.shippingCost.textContent = formatNumber(shippingCostValue) + ' ريال';
-                    elements.additionalFees.textContent = formatNumber(additionalFeesValue) + ' ريال';
+                    // تحديث العرض (يشمل الرسوم الشخصية الآن)
+                    elements.totalCost.textContent = formatNumber(costs.totalWithPersonal);
+                    elements.carCostSAR.textContent = formatNumber(costs.carPriceSar) + ' ريال';
+                    elements.taxCost.textContent = formatNumber(costs.taxAndCustoms) + ' ريال';
+                    elements.shippingCost.textContent = formatNumber(costs.shippingCostValue) + ' ريال';
+                    // لا تظهر الرسوم الشخصية في العرض الفرعي (حسب التصميم)
+                    elements.additionalFees.textContent = formatNumber(costs.additionalFeesValue) + ' ريال';
 
-                    // Animate the total cost
+                    // تحريك الرقم
                     elements.totalCost.style.transform = 'scale(1.1)';
                     setTimeout(() => {
                         elements.totalCost.style.transform = 'scale(1)';
                     }, 200);
 
                 } catch (error) {
+                    console.error(error);
                     showToast('حدث خطأ في الحساب. يرجى التحقق من البيانات المدخلة.', 'error');
                 }
             }
 
-            // Copy message to clipboard
-            function copyMessageToClipboard() {
-                const formData = new FormData(form);
-                const data = Object.fromEntries(formData);
-                
-                // Your original message format
-                const exchangeRateKrw = (parseFloat(elements.krwToUsd.value) || 1);
-                const carPriceUsd = (parseFloat(elements.carPriceKrw.value) || 0) / (exchangeRateKrw || 1);
-                const carPriceSar = (carPriceUsd || 0) * (parseFloat(elements.usdToSar.value) || 0);
-                const taxAndCustoms = ((parseFloat(elements.carPriceTable.value) || 0) * 0.2);
-                const shippingCostValue = elements.carSize.value === 'small' ? 5800 : 6800;
-                const totalCostValue = Math.round(carPriceSar + taxAndCustoms + (parseFloat(elements.customsFees.value) || 0) + (parseFloat(elements.officeCommission.value) || 0) + shippingCostValue);
+            /**
+             * نسخ الرسالة إلى الحافظة بطريقة حديثة مع fallback
+             * @param {boolean} rounded تقريب إلى أقرب مئة
+             */
+            function copyMessageToClipboard(rounded = false) {
+                try {
+                    if (!validateInput()) return;
+                    const formData = new FormData(form);
+                    const data = Object.fromEntries(formData);
 
-                const message = `
+                    // حساب التكاليف الموحدة
+                    const costs = calculateCosts(elements);
+
+                    // المجموع الظاهر فقط (يشمل الرسوم الشخصية الآن)
+                    const totalToShow = rounded ? formatNumberHundred(costs.totalWithPersonal) : Math.round(costs.totalWithPersonal);
+
+                    const message = `
 🚗 تفاصيل السيارة:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • نوع السيارة: ${data.carType}
@@ -680,31 +850,53 @@
 
 💰 التفاصيل المالية:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• سعر الوون: ${Math.round(data.carPriceKrw)}
-• السعر بالريال: ${Math.round(carPriceSar)}
-• الضريبة والجمارك: ${Math.round(taxAndCustoms)}
-• رسوم التخليص: ${Math.round(data.customsFees)}
-• عمولة المكتب: ${Math.round(data.officeCommission)}
-• تكلفة الشحن: ${shippingCostValue}
+• سعر السيارة: ${costs.carPriceKrwInput.toFixed(2)} مليون وون
+• السعر بالريال: ${Math.round(costs.carPriceSar)} ريال سعودي
+• الضريبة والجمارك: ${Math.round(costs.taxAndCustoms)} ريال سعودي
+• رسوم التخليص: ${Math.round(costs.customsFees)} ريال سعودي
+• عمولة المكتب: ${Math.round(costs.officeCommission)} ريال سعودي
+• تكلفة الشحن: ${costs.shippingCostValue} ريال سعودي
 
-💎 إجمالي السعر الشامل: ${totalCostValue} ريال سعودي
-                `;
+💎 إجمالي السعر الشامل: ${totalToShow} ريال سعودي
+`;
 
-                if (navigator.clipboard) {
-                    navigator.clipboard.writeText(message).then(() => {
-                        showToast('تم نسخ التفاصيل بنجاح!', 'success');
-                    }).catch(() => {
-                        showToast('حدث خطأ أثناء النسخ!', 'error');
-                    });
-                } else {
-                    // Fallback for older browsers
+                    // طريقة حديثة للنسخ مع fallback
+                    if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(message).then(() => {
+                            showToast('تم نسخ التفاصيل بنجاح!', 'success');
+                        }).catch((err) => {
+                            console.error('Clipboard API error:', err);
+                            fallbackCopyTextToClipboard(message);
+                        });
+                    } else {
+                        fallbackCopyTextToClipboard(message);
+                    }
+                } catch (error) {
+                    console.error(error);
+                    showToast('حدث خطأ أثناء تجهيز الرسالة!', 'error');
+                }
+            }
+
+            // Fallback للنسخ التقليدي
+            function fallbackCopyTextToClipboard(text) {
+                try {
                     const textarea = document.createElement('textarea');
-                    textarea.value = message;
+                    textarea.value = text;
+                    textarea.style.position = 'fixed'; // Prevent scrolling to bottom
                     document.body.appendChild(textarea);
+                    textarea.focus();
                     textarea.select();
-                    document.execCommand('copy');
+                    try {
+                        document.execCommand('copy');
+                        showToast('تم نسخ التفاصيل بنجاح!', 'success');
+                    } catch (err) {
+                        console.error('execCommand copy failed:', err);
+                        showToast('لم يتم النسخ تلقائياً. انسخ يدوياً.', 'error');
+                    }
                     document.body.removeChild(textarea);
-                    showToast('تم نسخ التفاصيل بنجاح!', 'success');
+                } catch (err) {
+                    console.error('Fallback copy failed:', err);
+                    showToast('لم يتم النسخ تلقائياً. انسخ يدوياً.', 'error');
                 }
             }
 
@@ -712,24 +904,66 @@
             form.addEventListener('input', () => {
                 updateProgress();
                 calculateTotalCost();
+                saveFormData();
             });
 
-            document.getElementById('calculate').addEventListener('click', calculateTotalCost);
-            document.getElementById('copyMessage').addEventListener('click', copyMessageToClipboard);
-            document.getElementById('fetchExchangeRate').addEventListener('click', fetchExchangeRate);
-            
-            document.getElementById('resetForm').addEventListener('click', () => {
-                form.reset();
-                elements.usdToSar.value = '3.77';
-                elements.officeCommission.value = '2000';
-                elements.customsFees.value = '1500';
-                updateProgress();
-                calculateTotalCost();
-                showToast('تم إعادة تعيين النموذج', 'success');
-            });
+            const calculateBtn = document.getElementById('calculate');
+            if (calculateBtn) {
+                calculateBtn.addEventListener('click', calculateTotalCost);
+            }
+
+            const copyMessageBtn = document.getElementById('copyMessage');
+            if (copyMessageBtn) {
+                copyMessageBtn.addEventListener('click', () => copyMessageToClipboard(false));
+            }
+
+            const copyMessageRoundedBtn = document.getElementById('copyMessageRounded');
+            if (copyMessageRoundedBtn) {
+                copyMessageRoundedBtn.addEventListener('click', () => copyMessageToClipboard(true));
+            }
+
+            const fetchExchangeRateBtn = document.getElementById('fetchExchangeRate');
+            if (fetchExchangeRateBtn) {
+                fetchExchangeRateBtn.addEventListener('click', fetchExchangeRate);
+            }
+
+            const resetFormBtn = document.getElementById('resetForm');
+            if (resetFormBtn) {
+                resetFormBtn.addEventListener('click', () => {
+                    form.reset();
+                    elements.usdToSar.value = '3.77';
+                    elements.officeCommission.value = '2000';
+                    elements.customsFees.value = '1500';
+                    if (elements.personalExtraFee) elements.personalExtraFee.value = '';
+                    updateProgress();
+                    calculateTotalCost();
+                    saveFormData();
+                    showToast('تم إعادة تعيين النموذج', 'success');
+                });
+            }
+
+            // 📦 Restore data button
+            const restoreDataBtn = document.getElementById('restoreDataBtn');
+            if (restoreDataBtn) {
+                restoreDataBtn.addEventListener('click', () => {
+                    restoreFormData(true);
+                });
+            }
+
+            // حذف أي مراجع لعناصر غير موجودة (shareBtn)
+            // const shareBtn = document.getElementById('shareBtn');
+            // if (shareBtn) {
+            //     shareBtn.addEventListener('click', function () {
+            //         // ... ضع هنا كود المشاركة الخاص بك ...
+            //     });
+            // }
 
             // Initialize
             updateProgress();
             calculateTotalCost();
+            // Auto-restore if data exists (optional: comment out if not desired)
+            // restoreFormData(false);
         });
     </script>
+</body>
+</html>
